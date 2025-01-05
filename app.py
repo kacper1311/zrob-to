@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk
 import json
 import os
 
@@ -17,17 +17,16 @@ class TaskManager:
             if os.path.exists("tasks.json"):
                 with open("tasks.json", "r") as file:
                     return [Task(**task) for task in json.load(file)]
-            return []
-        except json.JSONDecodeError:
-            messagebox.showerror("Błąd", "Nie udało się załadować pliku z zadaniami. Plik może być uszkodzony.")
-            return []
+        except Exception as e:
+            app.show_error_message(f"Błąd wczytywania zadań: {e}")
+        return []
 
     def save_tasks(self):
         try:
             with open("tasks.json", "w") as file:
                 json.dump([task.__dict__ for task in self.tasks], file)
-        except IOError:
-            messagebox.showerror("Błąd", "Nie udało się zapisać pliku z zadaniami.")
+        except Exception as e:
+            app.show_error_message(f"Błąd zapisu zadań: {e}")
 
     def add_task(self, task):
         self.tasks.append(task)
@@ -39,167 +38,152 @@ class TaskManager:
             self.tasks[index].status = status
             self.save_tasks()
         except IndexError:
-            messagebox.showerror("Błąd", "Nie można edytować zadania, które nie istnieje.")
+            app.show_error_message("Nie można edytować: zadanie nie istnieje.")
 
     def delete_task(self, index):
         try:
             del self.tasks[index]
             self.save_tasks()
         except IndexError:
-            messagebox.showerror("Błąd", "Nie można usunąć zadania, które nie istnieje.")
+            app.show_error_message("Nie można usunąć: zadanie nie istnieje.")
 
 class TaskApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Zrób to!")
         self.root.geometry("800x600")
+        self.root.configure(bg="#2b2b2b")
         self.manager = TaskManager()
 
         self.create_widgets()
         self.update_task_list()
 
     def create_widgets(self):
-        # Frame for the task details
-        self.frame_details = ttk.Frame(self.root, padding="10")
-        self.frame_details.grid(row=0, column=0, sticky="nsew")
+        # Frames
+        self.frame_tasks = tk.Frame(self.root, bg="#3c3f41", pady=10)
+        self.frame_tasks.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # Frame for the task list
-        self.frame_tasks = ttk.Frame(self.root, padding="10")
-        self.frame_tasks.grid(row=1, column=0, sticky="nsew")
+        self.frame_controls = tk.Frame(self.root, bg="#2b2b2b")
+        self.frame_controls.pack(fill="x", padx=10, pady=5)
 
-        # Configure grid weights for responsiveness
-        self.root.grid_columnconfigure(0, weight=1)
-        self.root.grid_rowconfigure(0, weight=2)
-        self.root.grid_rowconfigure(1, weight=1)
+        # Task list with scrollbar
+        self.canvas = tk.Canvas(self.frame_tasks, bg="#3c3f41", highlightthickness=0)
+        self.scrollbar = tk.Scrollbar(self.frame_tasks, orient="vertical", command=self.canvas.yview)
+        self.scrollable_frame = tk.Frame(self.canvas, bg="#3c3f41")
 
-        # Buttons
-        self.frame_buttons = ttk.Frame(self.frame_details)
-        self.frame_buttons.pack(fill="x", pady=10)
+        self.scrollable_frame.bind(
+            "<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        )
 
-        self.button_add = tk.Button(self.frame_buttons, text="Dodaj zadanie", font=("Arial", 12), command=self.show_add_task_form)
-        self.button_add.pack(side="left", padx=5, expand=True)
+        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
 
-        # Edit and delete frame
-        self.edit_delete_frame = ttk.Frame(self.root, padding="10", relief="raised")
-        self.edit_delete_frame.place_forget()
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
 
-        self.label_edit_task = ttk.Label(self.edit_delete_frame, text="Edytuj zadanie", font=("Arial", 14))
-        self.label_edit_task.pack(anchor="center")
+        # Add task section
+        self.button_add_task = tk.Button(self.root, text="Dodaj nowe zadanie", font=("Segoe UI", 12), command=self.show_add_task, bg="#4CAF50", fg="white")
+        self.button_add_task.pack(side="bottom", pady=10)
 
-        self.text_task_edit = tk.Text(self.edit_delete_frame, wrap="word", height=4, font=("Arial", 12))
-        self.text_task_edit.pack(fill="x", pady=5)
-
-        self.label_status_edit = ttk.Label(self.edit_delete_frame, text="Status", font=("Arial", 14))
-        self.label_status_edit.pack(anchor="center")
-
-        self.combo_status_edit = ttk.Combobox(self.edit_delete_frame, values=["do zrobienia", "w trakcie", "zakończone"], font=("Arial", 12), state="readonly")
-        self.combo_status_edit.pack(fill="x", pady=5)
-        self.combo_status_edit.bind("<Button-1>", lambda event: self.combo_status_edit.event_generate('<Down>'))
-
-        self.button_edit = tk.Button(self.edit_delete_frame, text="Edytuj", font=("Arial", 12), command=self.edit_task)
-        self.button_edit.pack(side="left", padx=5, expand=True)
-
-        self.button_delete = tk.Button(self.edit_delete_frame, text="Usuń", font=("Arial", 12), command=self.delete_task)
-        self.button_delete.pack(side="left", padx=5, expand=True)
-
-        self.button_cancel = tk.Button(self.edit_delete_frame, text="Anuluj", font=("Arial", 12), command=self.hide_edit_delete_buttons)
-        self.button_cancel.pack(side="left", padx=5, expand=True)
-
-        # Task list
-        self.label_tasks = ttk.Label(self.frame_tasks, text="Lista zadań", font=("Arial", 14))
-        self.label_tasks.pack(anchor="center")
-
-        self.text_tasks = tk.Text(self.frame_tasks, wrap="word", font=("Arial", 12))
-        self.text_tasks.pack(fill="both", expand=True)
-        self.text_tasks.bind("<Button-1>", self.show_edit_delete_buttons)
-
-    def show_add_task_form(self):
-        self.edit_delete_frame.place_forget()
-        self.add_task_frame = ttk.Frame(self.root, padding="10", relief="raised")
-        self.add_task_frame.place(relx=0.5, rely=0.3, anchor="center")
-
-        self.label_add_task = ttk.Label(self.add_task_frame, text="Dodaj nowe zadanie", font=("Arial", 14))
-        self.label_add_task.pack(anchor="center")
-
-        self.text_task_add = tk.Text(self.add_task_frame, wrap="word", height=4, font=("Arial", 12))
-        self.text_task_add.pack(fill="x", pady=5)
-
-        self.label_status_add = ttk.Label(self.add_task_frame, text="Status", font=("Arial", 14))
-        self.label_status_add.pack(anchor="center")
-
-        self.combo_status_add = ttk.Combobox(self.add_task_frame, values=["do zrobienia", "w trakcie", "zakończone"], font=("Arial", 12), state="readonly")
-        self.combo_status_add.pack(fill="x", pady=5)
-        self.combo_status_add.set("do zrobienia")
-        self.combo_status_add.bind("<Button-1>", lambda event: self.combo_status_add.event_generate('<Down>'))
-
-        self.button_confirm_add = tk.Button(self.add_task_frame, text="Dodaj", font=("Arial", 12), command=self.add_task)
-        self.button_confirm_add.pack(side="left", padx=5, expand=True)
-
-        self.button_cancel_add = tk.Button(self.add_task_frame, text="Anuluj", font=("Arial", 12), command=self.hide_add_task_form)
-        self.button_cancel_add.pack(side="left", padx=5, expand=True)
-
-    def hide_add_task_form(self):
-        self.add_task_frame.place_forget()
-
-    def add_task(self):
-        task = self.text_task_add.get("1.0", tk.END).strip()
-        status = self.combo_status_add.get()
-        if task and status:
-            new_task = Task(task, status)
-            self.manager.add_task(new_task)
+    def add_task(self, task_text, status):
+        if task_text:
+            self.manager.add_task(Task(task_text, status))
             self.update_task_list()
-            self.hide_add_task_form()
         else:
-            messagebox.showerror("Błąd", "Nie można dodać pustego zadania.")
-
-    def edit_task(self):
-        selected_task_index = self.get_selected_task_index()
-        if selected_task_index is not None:
-            task = self.text_task_edit.get("1.0", tk.END).strip()
-            status = self.combo_status_edit.get()
-            if task and status:
-                self.manager.edit_task(selected_task_index, task, status)
-                self.update_task_list()
-                self.hide_edit_delete_buttons()
-            else:
-                messagebox.showerror("Błąd", "Nie można zapisać pustego zadania.")
-        else:
-            messagebox.showerror("Błąd", "Nie wybrano zadania do edycji.")
-
-    def delete_task(self):
-        selected_task_index = self.get_selected_task_index()
-        if selected_task_index is not None:
-            self.manager.delete_task(selected_task_index)
-            self.update_task_list()
-            self.hide_edit_delete_buttons()
-        else:
-            messagebox.showerror("Błąd", "Nie wybrano zadania do usunięcia.")
-
-    def show_edit_delete_buttons(self, event):
-        selected_task_index = self.get_selected_task_index()
-        if selected_task_index is not None:
-            selected_task = self.manager.tasks[selected_task_index]
-            self.text_task_edit.delete("1.0", tk.END)
-            self.text_task_edit.insert(tk.END, selected_task.task)
-            self.combo_status_edit.set(selected_task.status)
-            self.edit_delete_frame.place(relx=0.5, rely=0.3, anchor="center")
-
-    def hide_edit_delete_buttons(self):
-        self.edit_delete_frame.place_forget()
+            self.show_error_message("Treść zadania nie może być pusta!")
 
     def update_task_list(self):
-        self.text_tasks.config(state=tk.NORMAL)
-        self.text_tasks.delete("1.0", tk.END)
-        for task in self.manager.tasks:
-            self.text_tasks.insert(tk.END, f"{task.task} - {task.status}\n")
-        self.text_tasks.config(state=tk.DISABLED)
+        for widget in self.scrollable_frame.winfo_children():
+            widget.destroy()
 
-    def get_selected_task_index(self):
-        try:
-            index = self.text_tasks.index(tk.CURRENT).split('.')[0]
-            return int(index) - 1
-        except:
-            return None
+        for index, task in enumerate(self.manager.tasks):
+            task_frame = tk.Frame(self.scrollable_frame, bg="#444444", pady=5, padx=5, relief="raised", bd=2)
+            task_frame.pack(fill="x", pady=5)
+
+            task_label = tk.Label(task_frame, text=task.task, font=("Segoe UI", 12), bg="#444444", fg="white", anchor="w")
+            task_label.pack(side="left", fill="x", expand=True, padx=5)
+
+            status_color = {"do zrobienia": "#ff4d4d", "w trakcie": "#ffa500", "zakończone": "#4CAF50"}
+            status_label = tk.Label(task_frame, text=task.status, font=("Segoe UI", 12), bg=status_color.get(task.status, "#444444"), fg="white", width=12)
+            status_label.pack(side="left", padx=5)
+
+            button_edit = tk.Button(task_frame, text="Edytuj", font=("Segoe UI", 10), bg="#2196F3", fg="white", command=lambda idx=index: self.show_edit_task(idx))
+            button_edit.pack(side="right", padx=5)
+
+            button_delete = tk.Button(task_frame, text="Usuń", font=("Segoe UI", 10), bg="#f44336", fg="white", command=lambda idx=index: self.delete_task(idx))
+            button_delete.pack(side="right", padx=5)
+
+    def show_add_task(self):
+        self.clear_task_controls()
+
+        self.entry_new_task = tk.Entry(self.frame_controls, font=("Segoe UI", 12), bg="#1e1e1e", fg="white", insertbackground="white")
+        self.entry_new_task.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
+
+        self.combo_status_add = ttk.Combobox(self.frame_controls, values=["do zrobienia", "w trakcie", "zakończone"], font=("Segoe UI", 12), state="readonly")
+        self.combo_status_add.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        self.combo_status_add.set("do zrobienia")
+
+        button_save = tk.Button(self.frame_controls, text="Dodaj", font=("Segoe UI", 12), bg="#4CAF50", fg="white", command=self.save_new_task)
+        button_save.grid(row=0, column=2, padx=5, pady=5)
+
+        button_cancel = tk.Button(self.frame_controls, text="Anuluj", font=("Segoe UI", 12), command=self.hide_task_controls)
+        button_cancel.grid(row=0, column=3, padx=5, pady=5)
+
+        self.frame_controls.columnconfigure(0, weight=1)
+
+    def save_new_task(self):
+        task_text = self.entry_new_task.get().strip()
+        status = self.combo_status_add.get()
+        self.add_task(task_text, status)
+        self.hide_task_controls()
+
+    def show_edit_task(self, index):
+        self.clear_task_controls()
+
+        task = self.manager.tasks[index]
+
+        self.entry_edit_task = tk.Entry(self.frame_controls, font=("Segoe UI", 12), bg="#1e1e1e", fg="white", insertbackground="white")
+        self.entry_edit_task.insert(0, task.task)
+        self.entry_edit_task.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
+
+        self.combo_status_edit = ttk.Combobox(self.frame_controls, values=["do zrobienia", "w trakcie", "zakończone"], font=("Segoe UI", 12), state="readonly")
+        self.combo_status_edit.set(task.status)
+        self.combo_status_edit.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+
+        button_save = tk.Button(self.frame_controls, text="Zapisz", font=("Segoe UI", 12), bg="#4CAF50", fg="white", command=lambda: self.edit_task(index))
+        button_save.grid(row=0, column=2, padx=5, pady=5)
+
+        button_cancel = tk.Button(self.frame_controls, text="Anuluj", font=("Segoe UI", 12), command=self.hide_task_controls)
+        button_cancel.grid(row=0, column=3, padx=5, pady=5)
+
+        self.frame_controls.columnconfigure(0, weight=1)
+
+    def edit_task(self, index):
+        task_text = self.entry_edit_task.get().strip()
+        status = self.combo_status_edit.get()
+        if task_text:
+            self.manager.edit_task(index, task_text, status)
+            self.update_task_list()
+            self.hide_task_controls()
+        else:
+            self.show_error_message("Treść zadania nie może być pusta!")
+
+    def delete_task(self, index):
+        self.manager.delete_task(index)
+        self.update_task_list()
+
+    def hide_task_controls(self):
+        for widget in self.frame_controls.winfo_children():
+            widget.destroy()
+
+    def clear_task_controls(self):
+        for widget in self.frame_controls.winfo_children():
+            widget.destroy()
+
+    def show_error_message(self, message):
+        error_label = tk.Label(self.root, text=message, font=("Segoe UI", 10), bg="#2b2b2b", fg="red")
+        error_label.pack(fill="x")
+        self.root.after(3000, error_label.destroy)
 
 if __name__ == "__main__":
     root = tk.Tk()
