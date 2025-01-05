@@ -13,31 +13,40 @@ class TaskManager:
         self.tasks = self.load_tasks()
 
     def load_tasks(self):
-        if os.path.exists("tasks.json"):
-            try:
+        try:
+            if os.path.exists("tasks.json"):
                 with open("tasks.json", "r") as file:
                     return [Task(**task) for task in json.load(file)]
-            except (json.JSONDecodeError, ValueError):
-                messagebox.showerror("Błąd", "Plik tasks.json jest uszkodzony. Zostanie nadpisany.")
-                return []
-        return []
+            return []
+        except json.JSONDecodeError:
+            messagebox.showerror("Błąd", "Nie udało się załadować pliku z zadaniami. Plik może być uszkodzony.")
+            return []
 
     def save_tasks(self):
-        with open("tasks.json", "w") as file:
-            json.dump([task.__dict__ for task in self.tasks], file)
+        try:
+            with open("tasks.json", "w") as file:
+                json.dump([task.__dict__ for task in self.tasks], file)
+        except IOError:
+            messagebox.showerror("Błąd", "Nie udało się zapisać pliku z zadaniami.")
 
     def add_task(self, task):
         self.tasks.append(task)
         self.save_tasks()
 
     def edit_task(self, index, task, status):
-        self.tasks[index].task = task
-        self.tasks[index].status = status
-        self.save_tasks()
+        try:
+            self.tasks[index].task = task
+            self.tasks[index].status = status
+            self.save_tasks()
+        except IndexError:
+            messagebox.showerror("Błąd", "Nie można edytować zadania, które nie istnieje.")
 
     def delete_task(self, index):
-        del self.tasks[index]
-        self.save_tasks()
+        try:
+            del self.tasks[index]
+            self.save_tasks()
+        except IndexError:
+            messagebox.showerror("Błąd", "Nie można usunąć zadania, które nie istnieje.")
 
 class TaskApp:
     def __init__(self, root):
@@ -50,22 +59,27 @@ class TaskApp:
         self.update_task_list()
 
     def create_widgets(self):
+        # Frame for the task details
         self.frame_details = ttk.Frame(self.root, padding="10")
         self.frame_details.grid(row=0, column=0, sticky="nsew")
 
+        # Frame for the task list
         self.frame_tasks = ttk.Frame(self.root, padding="10")
         self.frame_tasks.grid(row=1, column=0, sticky="nsew")
 
+        # Configure grid weights for responsiveness
         self.root.grid_columnconfigure(0, weight=1)
         self.root.grid_rowconfigure(0, weight=2)
         self.root.grid_rowconfigure(1, weight=1)
 
+        # Buttons
         self.frame_buttons = ttk.Frame(self.frame_details)
         self.frame_buttons.pack(fill="x", pady=10)
 
         self.button_add = tk.Button(self.frame_buttons, text="Dodaj zadanie", font=("Arial", 12), command=self.show_add_task_form)
         self.button_add.pack(side="left", padx=5, expand=True)
 
+        # Edit and delete frame
         self.edit_delete_frame = ttk.Frame(self.root, padding="10", relief="raised")
         self.edit_delete_frame.place_forget()
 
@@ -91,6 +105,7 @@ class TaskApp:
         self.button_cancel = tk.Button(self.edit_delete_frame, text="Anuluj", font=("Arial", 12), command=self.hide_edit_delete_buttons)
         self.button_cancel.pack(side="left", padx=5, expand=True)
 
+        # Task list
         self.label_tasks = ttk.Label(self.frame_tasks, text="Lista zadań", font=("Arial", 14))
         self.label_tasks.pack(anchor="center")
 
@@ -129,24 +144,27 @@ class TaskApp:
     def add_task(self):
         task = self.text_task_add.get("1.0", tk.END).strip()
         status = self.combo_status_add.get()
-        if not task:
-            messagebox.showerror("Błąd", "Zadanie nie może być puste!")
-            return
-        self.manager.add_task(Task(task, status))
-        self.update_task_list()
-        self.hide_add_task_form()
+        if task and status:
+            new_task = Task(task, status)
+            self.manager.add_task(new_task)
+            self.update_task_list()
+            self.hide_add_task_form()
+        else:
+            messagebox.showerror("Błąd", "Nie można dodać pustego zadania.")
 
     def edit_task(self):
         selected_task_index = self.get_selected_task_index()
         if selected_task_index is not None:
             task = self.text_task_edit.get("1.0", tk.END).strip()
             status = self.combo_status_edit.get()
-            if not task:
-                messagebox.showerror("Błąd", "Zadanie nie może być puste!")
-                return
-            self.manager.edit_task(selected_task_index, task, status)
-            self.update_task_list()
-            self.hide_edit_delete_buttons()
+            if task and status:
+                self.manager.edit_task(selected_task_index, task, status)
+                self.update_task_list()
+                self.hide_edit_delete_buttons()
+            else:
+                messagebox.showerror("Błąd", "Nie można zapisać pustego zadania.")
+        else:
+            messagebox.showerror("Błąd", "Nie wybrano zadania do edycji.")
 
     def delete_task(self):
         selected_task_index = self.get_selected_task_index()
@@ -154,6 +172,8 @@ class TaskApp:
             self.manager.delete_task(selected_task_index)
             self.update_task_list()
             self.hide_edit_delete_buttons()
+        else:
+            messagebox.showerror("Błąd", "Nie wybrano zadania do usunięcia.")
 
     def show_edit_delete_buttons(self, event):
         selected_task_index = self.get_selected_task_index()
