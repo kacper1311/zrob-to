@@ -1,4 +1,4 @@
-# Modern Task Manager
+# Zrób to!
 
 ## Opis projektu
 Zrób to! to aplikacja do zarządzania zadaniami, umożliwiająca użytkownikom dodawanie, edytowanie i usuwanie zadań oraz zarządzanie użytkownikami. Aplikacja wykorzystuje interfejs graficzny oparty na Tkinter i zapisuje dane w pliku JSON.
@@ -35,12 +35,6 @@ ModernTaskManager/
 ```
 
 ## Uruchomienie aplikacji
-1. Pobierz i zainstaluj Python 3.
-2. Upewnij się, że masz wymagane biblioteki:
-   ```bash
-   pip install tk
-   ```
-3. Uruchom aplikację:
    ```bash
    python main.py
    ```
