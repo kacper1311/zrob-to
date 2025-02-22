@@ -1,4 +1,3 @@
-# storage.py
 import json
 
 def save_data(tasks, users):
