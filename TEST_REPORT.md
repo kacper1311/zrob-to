@@ -1,10 +1,10 @@
 #  TEST REPORT - Zrób to!
 
-## 📋 Przetestowane elementy
+## Przetestowane elementy
 1. Dodawanie i usuwanie zadań (`tasks.py`)
 2. Dodawanie użytkowników (`users.py`)
 
-## 🛠 Metoda testowania
+## Metoda testowania
 - Testy jednostkowe w `unittest`
 
 ##  Wyniki testów
