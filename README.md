@@ -53,5 +53,5 @@ pytest test_tasks.py test_users.py
 
 ## Autor
 - **Imię i nazwisko:** Kacper Jasyk
-- **Indeks:** 58953
+
 
